@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Certificador Radio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./style.css" />
+  <!-- Librerías cliente -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Certificador Radio</h1>
+    <div class="header-controls">
+      <button id="btnExpandAll" class="btn-header" title="Expandir todas las secciones">
+        <span>▼</span> Expandir todo
+      </button>
+      <button id="btnCollapseAll" class="btn-header" title="Contraer todas las secciones">
+        <span>▶</span> Contraer todo
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel input-panel">
+      <h2>1) Entrada</h2>
+      <h3>📁 Logs Mensuales</h3>
+      <div class="file-upload-area">
+        <div class="file-upload-content">
+          <div class="file-upload-icon">📁</div>
+          <div class="file-upload-text">
+            <strong>Seleccionar archivo ZIP</strong>
+            <span>Arrastra y suelta tu archivo ZIP mensual de logs aquí o haz clic para seleccionar</span>
+          </div>
+        </div>
+        <input type="file" id="zipInput" accept=".zip" class="file-input" />
+        <div class="file-selected hidden" id="fileSelected">
+          <span class="file-icon">📄</span>
+          <span class="file-name" id="fileName"></span>
+          <button type="button" class="file-remove" id="fileRemove">✕</button>
+        </div>
+      </div>
+
+      <div class="excel-targets-section">
+        <h3>📊 Clientes y Objetivos</h3>
+        <div class="excel-upload-area">
+          <input type="file" id="excelTargets" accept=".xlsx,.xls" class="excel-input" />
+          <label for="excelTargets" class="excel-label">
+            <div class="file-upload-icon">📑</div>
+            <div class="file-upload-text">
+              <strong>Seleccionar archivo CLIENTES.xlsx</strong>
+              <span>Opción A: Genera certificados desde objetivos • Opción B: Aplica objetivos al ZIP</span>
+            </div>
+          </label>
+          <div class="excel-selected hidden" id="excelSelected">
+            <span class="file-icon">📑</span>
+            <span class="excel-filename" id="excelFileName"></span>
+            <button type="button" class="file-remove" id="excelRemove">✕</button>
+          </div>
+        </div>
+        <div id="targetsStatus" class="targets-status"></div>
+      </div>
+
+      <div class="opts">
+        <div class="opt-group">
+          <label>Mes y Año:</label>
+          <div class="month-year-selector">
+            <select id="monthSelect">
+              <option value="1">Enero</option>
+              <option value="2">Febrero</option>
+              <option value="3">Marzo</option>
+              <option value="4">Abril</option>
+              <option value="5">Mayo</option>
+              <option value="6">Junio</option>
+              <option value="7">Julio</option>
+              <option value="8">Agosto</option>
+              <option value="9" selected>Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+            <select id="yearSelect">
+              <option value="2020">2020</option>
+              <option value="2021">2021</option>
+              <option value="2022">2022</option>
+              <option value="2023">2023</option>
+              <option value="2024">2024</option>
+              <option value="2025" selected>2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+              <option value="2029">2029</option>
+              <option value="2030">2030</option>
+            </select>
+          </div>
+          <div class="suffix-preview">Sufijo: <span id="suffixPreview">_SEP2025</span></div>
+        </div>
+        <div class="opt-group">
+          <label>Zona horaria:</label>
+          <select id="tz">
+            <option value="Europe/Madrid" selected>Europe/Madrid</option>
+          </select>
+        </div>
+        <div class="opt-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="ajuste" checked>
+            <span class="checkbox-text">Permitir ajuste manual de cuñas</span>
+          </label>
+        </div>
+      </div>
+
+      <button id="btnProcesar" class="btn-large">📊 PROCESAR</button>
+      <p class="process-hint">Procesa el ZIP de logs, o genera certificados desde el Excel CLIENTES.xlsx</p>
+      <div id="status"></div>
+    </section>
+
+    <section class="panel results-panel collapsible">
+      <h2 class="collapsible-header">
+        <span>2) Resultados</span>
+        <button type="button" class="collapse-btn" data-target="results-content" title="Contraer/Expandir">
+          <span class="collapse-icon">▼</span>
+        </button>
+      </h2>
+      <div id="results-content" class="collapsible-content">
+        <div class="search-container">
+          <input type="text" id="clientSearch" placeholder="🔍 Buscar cliente..." class="search-input">
+          <span id="clientCount" class="client-count"></span>
+        </div>
+        <div id="resumen"></div>
+        <div id="clientesList"></div>
+      </div>
+    </section>
+
+    <section class="panel cliente-detail-panel collapsible collapsed" id="clientePanel">
+      <h2 class="collapsible-header">
+        <span id="clienteTitle">Detalle de Cliente</span>
+        <button type="button" class="collapse-btn" data-target="cliente-content" title="Contraer/Expandir">
+          <span class="collapse-icon">▼</span>
+        </button>
+      </h2>
+      <div id="cliente-content" class="collapsible-content">
+        <p id="clienteCobertura" class="cliente-cobertura-badge"></p>
+        
+        <div class="ajuste-panel">
+          <h4>⚙️ Configuración de Emisiones</h4>
+          
+          <!-- Tabs para seleccionar modo de configuración -->
+          <div class="config-mode-tabs">
+            <button type="button" class="config-tab active" data-mode="simple">
+              📊 Por Radio y Número
+            </button>
+            <button type="button" class="config-tab" data-mode="calendar">
+              📅 Calendario Personalizado
+            </button>
+          </div>
+          
+          <!-- Modo Simple: Por Radio y Número de Emisiones -->
+          <div id="simpleConfigMode" class="config-mode active">
+            <div class="config-section">
+              <h5>🎯 Emisiones por Radio</h5>
+              <div class="ajuste-form">
+                <label>ESRADIO: <input type="number" id="targetEs" min="0" value="0" /></label>
+                <label>MARCADOR: <input type="number" id="targetMa" min="0" value="0" /></label>
+              </div>
+              <p class="config-hint">💡 Las emisiones se distribuirán aleatoriamente en el mes</p>
+            </div>
+            
+            <div class="config-section">
+              <h5>🕐 Franja Horaria</h5>
+              <div class="time-config">
+                <label>Desde: 
+                  <input type="number" id="hourFromSimple" min="0" max="23" value="8" class="time-input"> :
+                  <input type="number" id="minuteFromSimple" min="0" max="59" value="0" class="time-input">
+                </label>
+                <label>Hasta: 
+                  <input type="number" id="hourToSimple" min="0" max="23" value="22" class="time-input"> :
+                  <input type="number" id="minuteToSimple" min="0" max="59" value="59" class="time-input">
+                </label>
+              </div>
+              <p class="config-hint">💡 Las horas y minutos se generarán aleatoriamente dentro de esta franja</p>
+            </div>
+          </div>
+          
+          <!-- Modo Calendario: Calendario de Emisiones Personalizado -->
+          <div id="calendarConfigMode" class="config-mode">
+            <div class="config-section">
+              <div class="calendar-controls">
+                <button type="button" id="btnSelectAll" class="btn-calendar-action">✅ Seleccionar Todos</button>
+                <button type="button" id="btnClearAll" class="btn-calendar-action">❌ Limpiar Todo</button>
+                <label class="emissions-per-day-label">
+                  Emisiones por día seleccionado: 
+                  <input type="number" id="defaultEmissions" min="1" max="50" value="2" class="emissions-input">
+                </label>
+              </div>
+              
+              <div id="calendarContainer" class="calendar-container">
+                <!-- El calendario se generará dinámicamente -->
+              </div>
+              
+              <div class="calendar-summary">
+                <span id="calendarSummary">0 días seleccionados • 0 emisiones totales</span>
+              </div>
+            </div>
+            
+            <div class="config-section">
+              <h5>🕐 Franja Horaria</h5>
+              <div class="time-config">
+                <label>Desde: 
+                  <input type="number" id="hourFrom" min="0" max="23" value="8" class="time-input"> :
+                  <input type="number" id="minuteFrom" min="0" max="59" value="0" class="time-input">
+                </label>
+                <label>Hasta: 
+                  <input type="number" id="hourTo" min="0" max="23" value="22" class="time-input"> :
+                  <input type="number" id="minuteTo" min="0" max="59" value="59" class="time-input">
+                </label>
+              </div>
+              <p class="config-hint">💡 Las horas y minutos se generarán aleatoriamente dentro de esta franja</p>
+            </div>
+          </div>
+          
+          <div class="ajuste-actions">
+            <button id="btnAplicarAjuste" class="btn-large">✅ Aplicar Configuración</button>
+            <button id="btnRevertir" class="btn-outline">↩️ Revertir a Real</button>
+          </div>
+        </div>
+        
+        <div class="cliente-actions">
+          <h4 class="radio-section-title">📻 Seleccionar Radio para Certificado</h4>
+          <div class="radio-options">
+            <label class="radio-option">
+              <input type="radio" name="radioType" value="AUTO" checked>
+              <span class="radio-label">
+                <span class="radio-emoji">🔄</span>
+                <span class="radio-text">Automático</span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="radioType" value="ESRADIO">
+              <span class="radio-label">
+                <span class="radio-emoji">📻</span>
+                <span class="radio-text">ESRADIO</span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="radioType" value="MARCADOR">
+              <span class="radio-label">
+                <span class="radio-emoji">📡</span>
+                <span class="radio-text">MARCADOR</span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="radioType" value="DUAL">
+              <span class="radio-label">
+                <span class="radio-emoji">🔀</span>
+                <span class="radio-text">DUAL</span>
+              </span>
+            </label>
+          </div>
+          
+          <button id="btnDownloadIndividual" class="btn-download-individual">
+            📥 Descargar Certificado de este Cliente
+          </button>
+        </div>
+        
+        <div id="certPreview"></div>
+      </div>
+    </section>
+
+    <section class="panel export-panel collapsible">
+      <h2 class="collapsible-header">
+        <span>3) Exportación</span>
+        <button type="button" class="collapse-btn" data-target="export-content" title="Contraer/Expandir">
+          <span class="collapse-icon">▼</span>
+        </button>
+      </h2>
+      <div id="export-content" class="collapsible-content">
+        <button id="btnZip" class="btn-large">📦 Descargar CERTIFICACIONES_<span class="suffixLabel">SEP2025</span>.zip</button>
+        <div class="single-exports">
+          <button id="btnResumen" class="btn-secondary">📋 Descargar RESUMEN_<span class="suffixLabel">SEP2025</span>.xlsx</button>
+          <button id="btnClientesXlsx" class="btn-secondary">👥 Descargar CLIENTES.xlsx</button>
+          <button id="btnListado" class="btn-secondary">📄 Descargar LISTADO_CLIENTES_PUBLICIDAD_<span class="suffixLabel">SEP2025</span>.xlsx</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <small>Todo se procesa localmente en tu navegador. No se envían datos a ningún servidor.</small>
+    <div class="templates-footer">
+      <small>📋 Plantillas predefinidas: PLANTILLA_ESRADIO.xlsx • PLANTILLA_MARCADOR.xlsx • PLANTILLA_DUAL.xlsx</small>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
